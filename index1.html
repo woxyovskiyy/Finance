@@ -1,0 +1,2143 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Protocol">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Финансовый трекер</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Геометрические гротески Plus Jakarta Sans и Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            graphite: {
+              950: '#121316',
+              900: '#1A1B20',
+              800: '#202228',
+              700: '#2A2D36',
+              600: '#363A45',
+            },
+            pastel: {
+              mint: '#CBE7EC',
+              lavender: '#E3DDF5',
+              cream: '#F3EDE4',
+              blush: '#F5DFDE',
+              ink: '#141519',
+            }
+          },
+          borderRadius: {
+            '3xl': '24px',
+            '4xl': '30px',
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body {
+      background-color: #121316;
+      color: #F4F5F7;
+      font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Деликатное фоновое свечение */
+    .ambient-bg {
+      background-image:
+        radial-gradient(circle at 50% 8%, rgba(203, 231, 236, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 85% 82%, rgba(227, 221, 245, 0.04) 0%, transparent 45%);
+    }
+
+    /* Тонкая рамка поверхностей */
+    .subtle-border {
+      border-color: rgba(255, 255, 255, 0.06);
+    }
+
+    /* Плавное движение кольца капитала */
+    .capital-ring-arc {
+      transition: stroke-dashoffset 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+                  stroke 0.35s ease;
+    }
+
+    /* Мягкий отклик круга при добавлении дохода или расхода */
+    @keyframes pulseMint {
+      0% { box-shadow: 0 0 0 0 rgba(203, 231, 236, 0.3); }
+      50% { box-shadow: 0 0 38px 6px rgba(203, 231, 236, 0.14); }
+      100% { box-shadow: 0 0 0 0 rgba(203, 231, 236, 0); }
+    }
+    @keyframes pulseBlush {
+      0% { box-shadow: 0 0 0 0 rgba(245, 223, 222, 0.3); }
+      50% { box-shadow: 0 0 38px 6px rgba(245, 223, 222, 0.14); }
+      100% { box-shadow: 0 0 0 0 rgba(245, 223, 222, 0); }
+    }
+
+    .pulse-income {
+      animation: pulseMint 0.7s ease-out;
+    }
+    .pulse-expense {
+      animation: pulseBlush 0.7s ease-out;
+    }
+
+    /* Плавное появление вкладок и раскрывающихся блоков */
+    .view-fade {
+      animation: viewFade 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes viewFade {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Декоративный стек карточек для вкладки Накопления */
+    .stacked-card {
+      position: relative;
+      padding-top: 12px;
+    }
+    .stacked-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 20px;
+      right: 20px;
+      height: 32px;
+      background: #202228;
+      border-radius: 26px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      z-index: 0;
+      opacity: 0.7;
+    }
+
+    /* Стилизация полосы прокрутки */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #121316;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #2A2D36;
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="min-h-screen ambient-bg pb-28 selection:bg-pastel-mint selection:text-pastel-ink">
+
+  <!-- Всплывающие уведомления (без alert и confirm) -->
+  <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2.5 pointer-events-none max-w-sm w-[calc(100%-2.5rem)]"></div>
+
+  <!-- Основная рабочая область -->
+  <div class="max-w-[860px] mx-auto px-4 sm:px-6 pt-6 sm:pt-9">
+    <main>
+
+      <!-- ==================== ВКЛАДКА 1: КАПИТАЛ ==================== -->
+      <section id="tab-capital" class="view-fade space-y-6">
+
+        <!-- Чистое приветствие без лишних меню и иконок настроек -->
+        <div class="px-1 pt-1">
+          <h1 id="greeting-title" class="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+            Hello Гость!
+          </h1>
+          <p class="text-sm text-[#8E929F] font-medium mt-1">
+            Welcome Back!
+          </p>
+        </div>
+
+        <!-- Центральный круг с текущим доступным капиталом -->
+        <div class="bg-graphite-900 border subtle-border rounded-4xl p-6 sm:p-8 flex flex-col items-center relative overflow-hidden shadow-2xl shadow-black/30">
+          <div class="w-60 h-60 rounded-full bg-pastel-mint/5 blur-3xl absolute -top-16 pointer-events-none"></div>
+
+          <div
+            id="capital-circle-box"
+            class="relative w-64 h-64 sm:w-72 sm:h-72 rounded-full bg-graphite-950 border subtle-border flex items-center justify-center shadow-inner"
+          >
+            <!-- SVG-индикатор прогресса капитала -->
+            <svg class="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 260 260">
+              <defs>
+                <linearGradient id="capitalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#CBE7EC" />
+                  <stop offset="100%" stop-color="#E3DDF5" />
+                </linearGradient>
+              </defs>
+              <circle
+                cx="130"
+                cy="130"
+                r="116"
+                fill="none"
+                stroke="#23252D"
+                stroke-width="8"
+              />
+              <circle
+                id="capital-ring-arc"
+                class="capital-ring-arc"
+                cx="130"
+                cy="130"
+                r="116"
+                fill="none"
+                stroke="url(#capitalGrad)"
+                stroke-width="8"
+                stroke-linecap="round"
+                stroke-dasharray="728.85"
+                stroke-dashoffset="0"
+              />
+            </svg>
+
+            <!-- Баланс внутри круга -->
+            <div class="relative z-10 flex flex-col items-center text-center px-6 select-none">
+              <span class="px-3 py-1 rounded-full bg-graphite-800 border subtle-border text-[11px] font-semibold tracking-wide text-[#9A9EA9] mb-3">
+                Доступный капитал
+              </span>
+              <div
+                id="capital-balance-value"
+                class="text-3xl sm:text-4xl font-extrabold tracking-tight text-white tabular-nums"
+              >
+                1 200,00 €
+              </div>
+              <button
+                type="button"
+                onclick="openProfileModal(false, true)"
+                class="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pastel-mint/15 hover:bg-pastel-mint/25 text-pastel-mint text-xs font-semibold tabular-nums transition-colors"
+                title="Изменить стартовый капитал"
+              >
+                <span id="capital-percent-pill">100% бюджета</span>
+                <svg class="w-3 h-3 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Краткая сводка доходов и затрат под кругом -->
+          <div class="grid grid-cols-2 gap-3 w-full max-w-md mt-6">
+            <div class="bg-graphite-800/90 border subtle-border rounded-2xl px-4 py-3 flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-pastel-mint text-pastel-ink flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 19V5" />
+                  <path d="M5 12l7-7 7 7" />
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <span class="text-[11px] text-[#8E929F] block">Доходы</span>
+                <span id="mini-income-sum" class="text-sm font-bold text-white tabular-nums truncate block">+0,00 €</span>
+              </div>
+            </div>
+
+            <div class="bg-graphite-800/90 border subtle-border rounded-2xl px-4 py-3 flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-pastel-blush text-pastel-ink flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 5v14" />
+                  <path d="M19 12l-7 7-7-7" />
+                </svg>
+              </div>
+              <div class="min-w-0">
+                <span class="text-[11px] text-[#8E929F] block">Затраты</span>
+                <span id="mini-expense-sum" class="text-sm font-bold text-white tabular-nums truncate block">−0,00 €</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Меню затрат и доходов (выбор ТОЛЬКО через карточки с иконками) -->
+        <div class="bg-graphite-900 border subtle-border rounded-4xl p-5 sm:p-6 shadow-xl shadow-black/20">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+            <div>
+              <h2 class="text-base font-bold text-white">Новая операция</h2>
+              <p class="text-xs text-[#8E929F] mt-0.5">Выберите категорию и введите сумму в евро</p>
+            </div>
+
+            <!-- Переключатель режима: Расход / Доход -->
+            <div class="inline-flex bg-graphite-950 p-1 rounded-2xl border subtle-border self-start">
+              <button
+                type="button"
+                id="mode-btn-expense"
+                onclick="setTransactionMode('expense')"
+                class="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-pastel-blush text-pastel-ink shadow-sm"
+              >
+                Расход
+              </button>
+              <button
+                type="button"
+                id="mode-btn-income"
+                onclick="setTransactionMode('income')"
+                class="px-4 py-2 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-white"
+              >
+                Доход
+              </button>
+            </div>
+          </div>
+
+          <form id="transaction-form" onsubmit="handleTransactionSubmit(event)" class="space-y-4">
+            <!-- Сетка из 4 карточек с иконками (без дублирующего выпадающего списка) -->
+            <div>
+              <span id="category-section-label" class="block text-xs font-semibold text-[#8E929F] mb-2.5">
+                Категория расхода
+              </span>
+              <div id="category-cards-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <!-- Заполняется динамически через JS -->
+              </div>
+            </div>
+
+            <!-- Текстовое поле, плавно открывающееся при выборе «Свой вариант» -->
+            <div id="custom-category-box" class="hidden view-fade">
+              <div class="relative">
+                <span class="w-7 h-7 rounded-full bg-pastel-cream text-pastel-ink flex items-center justify-center absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none font-extrabold text-xs">
+                  ?
+                </span>
+                <input
+                  type="text"
+                  id="custom-category-input"
+                  maxlength="45"
+                  placeholder="Введите название своей категории"
+                  class="w-full bg-graphite-950 border subtle-border focus:border-pastel-cream rounded-2xl pl-12 pr-4 py-3.5 text-sm font-medium text-white placeholder-zinc-500 outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            <!-- Поле ввода суммы и кнопка подтверждения -->
+            <div class="flex flex-col sm:flex-row items-stretch gap-3 pt-1">
+              <div class="relative flex-1">
+                <input
+                  type="text"
+                  inputmode="decimal"
+                  id="transaction-amount-input"
+                  placeholder="0,00"
+                  autocomplete="off"
+                  class="w-full bg-graphite-950 border subtle-border focus:border-pastel-mint rounded-2xl pl-4 pr-10 py-3.5 text-base font-bold text-white placeholder-zinc-500 tabular-nums outline-none transition-colors"
+                />
+                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-base font-bold text-zinc-400 pointer-events-none">€</span>
+              </div>
+
+              <button
+                type="submit"
+                id="transaction-submit-btn"
+                class="px-7 py-3.5 rounded-2xl bg-pastel-blush hover:brightness-105 active:scale-[0.99] text-pastel-ink text-sm font-extrabold tracking-tight transition-all shrink-0 shadow-lg shadow-black/20"
+              >
+                Подтвердить расход
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Список последних операций -->
+        <div class="bg-graphite-900 border subtle-border rounded-4xl p-5 sm:p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-bold text-[#9A9EA9] tracking-wide">Последние операции</h3>
+            <span id="recent-tx-counter" class="text-xs font-medium text-zinc-500"></span>
+          </div>
+
+          <div id="recent-tx-list" class="space-y-3">
+            <!-- Генерируется через JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ВКЛАДКА 2: НАКОПЛЕНИЯ ==================== -->
+      <section id="tab-savings" class="hidden view-fade space-y-6">
+
+        <!-- Заголовок вкладки накоплений (без верхней шапки профиля) -->
+        <div class="bg-graphite-900 border subtle-border rounded-3xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-extrabold text-white">Распределение свободных средств</h2>
+            <p class="text-xs text-[#8E929F] mt-0.5">Переводы списываются из основного капитала в выбранный фонд</p>
+          </div>
+          <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-graphite-950 border subtle-border self-start sm:self-auto">
+            <span class="text-xs text-[#8E929F]">Свободный капитал:</span>
+            <span id="savings-free-capital" class="text-sm font-extrabold text-pastel-mint tabular-nums">1 200,00 €</span>
+          </div>
+        </div>
+
+        <!-- Два рабочих блока: Слева — конкретная цель пользователя, Справа — «На будущее» -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+
+          <!-- ЛЕВЫЙ БЛОК: Конкретная цель (по умолчанию пустая, создается самим пользователем) -->
+          <div class="stacked-card flex flex-col">
+            <div class="relative z-10 flex-1 bg-graphite-900 border subtle-border rounded-4xl p-5 sm:p-6 flex flex-col justify-between">
+
+              <!-- СОСТОЯНИЕ 1: Цель еще не выбрана пользователем -->
+              <div id="goal-empty-setup" class="flex-1 flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-4">
+                    <span class="px-3 py-1 rounded-full bg-pastel-mint/15 text-pastel-mint text-[11px] font-bold uppercase tracking-wider">
+                      Конкретная цель
+                    </span>
+                    <div class="w-9 h-9 rounded-full bg-pastel-mint text-pastel-ink flex items-center justify-center">
+                      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="9" />
+                        <circle cx="12" cy="12" r="5" />
+                        <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  <h3 class="text-lg font-extrabold text-white">Задайте свою цель</h3>
+                  <p class="text-xs text-[#8E929F] mt-1 mb-5">
+                    Укажите товар или мечту, добавьте фотографию и желаемую сумму для накопления.
+                  </p>
+                </div>
+
+                <form id="goal-create-form" onsubmit="handleGoalCreateOrUpdate(event)" class="space-y-3.5">
+                  <div>
+                    <label for="goal-setup-title" class="block text-xs font-semibold text-zinc-300 mb-1.5">
+                      Название цели
+                    </label>
+                    <input
+                      type="text"
+                      id="goal-setup-title"
+                      maxlength="45"
+                      required
+                      placeholder="Название цели"
+                      class="w-full bg-graphite-950 border subtle-border focus:border-pastel-mint rounded-2xl px-4 py-3 text-sm font-semibold text-white placeholder-zinc-500 outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label for="goal-setup-target" class="block text-xs font-semibold text-zinc-300 mb-1.5">
+                      Целевая сумма (€, необязательно)
+                    </label>
+                    <div class="relative">
+                      <input
+                        type="text"
+                        inputmode="decimal"
+                        id="goal-setup-target"
+                        placeholder="Например: 350,00"
+                        autocomplete="off"
+                        class="w-full bg-graphite-950 border subtle-border focus:border-pastel-mint rounded-2xl pl-4 pr-10 py-3 text-sm font-semibold text-white placeholder-zinc-500 tabular-nums outline-none transition-colors"
+                      />
+                      <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-zinc-500">€</span>
+                    </div>
+                  </div>
+
+                  <!-- Загрузка фото при создании цели -->
+                  <div>
+                    <input
+                      type="file"
+                      id="goal-setup-photo-input"
+                      accept="image/*"
+                      onchange="handleGoalSetupPhotoSelect(event)"
+                      class="hidden"
+                    />
+                    <label
+                      for="goal-setup-photo-input"
+                      class="w-full h-28 rounded-2xl bg-graphite-950 border border-dashed border-graphite-600 hover:border-pastel-mint/70 flex items-center justify-center gap-3 px-4 cursor-pointer overflow-hidden transition-colors relative"
+                    >
+                      <img id="goal-setup-photo-preview" alt="Превью цели" class="hidden absolute inset-0 w-full h-full object-cover opacity-85" />
+                      <div id="goal-setup-photo-hint" class="flex items-center gap-3 relative z-10">
+                        <div class="w-9 h-9 rounded-full bg-graphite-800 text-pastel-mint flex items-center justify-center shrink-0">
+                          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="16" rx="3" />
+                            <circle cx="8.5" cy="9.5" r="1.5" />
+                            <path d="M21 15l-5-5L5 20" />
+                          </svg>
+                        </div>
+                        <div class="text-left">
+                          <span class="text-xs font-bold text-zinc-200 block">Добавить фото товара</span>
+                          <span class="text-[11px] text-[#8E929F]">По желанию (можно загрузить позже)</span>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div class="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      id="goal-cancel-edit-btn"
+                      onclick="cancelGoalEditing()"
+                      class="hidden px-4 py-3 rounded-2xl bg-graphite-800 hover:bg-graphite-700 text-xs font-bold text-zinc-300 transition-colors"
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="submit"
+                      id="goal-save-submit-btn"
+                      class="flex-1 py-3.5 rounded-2xl bg-pastel-mint hover:brightness-105 text-pastel-ink text-sm font-extrabold transition-all shadow-md"
+                    >
+                      Создать цель
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- СОСТОЯНИЕ 2: Активная карточка созданной пользователем цели -->
+              <div id="goal-active-card" class="hidden flex-1 flex flex-col justify-between">
+                <div>
+                  <!-- Пастельная шапка цели -->
+                  <div class="bg-pastel-mint text-pastel-ink rounded-3xl p-4 mb-5 shadow-md">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0 flex-1">
+                        <span class="text-[11px] font-bold uppercase tracking-wider opacity-70 block">Конкретная цель</span>
+                        <h3 id="goal-card-title" class="text-lg font-extrabold truncate mt-0.5"></h3>
+                      </div>
+
+                      <!-- Круговой индикатор прогресса (если указана целевая сумма) -->
+                      <div id="goal-ring-box" class="relative w-14 h-14 flex items-center justify-center shrink-0">
+                        <svg class="w-full h-full -rotate-90" viewBox="0 0 56 56">
+                          <circle cx="28" cy="28" r="23" fill="none" stroke="rgba(20,21,25,0.16)" stroke-width="4" />
+                          <circle
+                            id="goal-mini-ring"
+                            cx="28"
+                            cy="28"
+                            r="23"
+                            fill="none"
+                            stroke="#141519"
+                            stroke-width="4"
+                            stroke-linecap="round"
+                            stroke-dasharray="144.51"
+                            stroke-dashoffset="144.51"
+                          />
+                        </svg>
+                        <span id="goal-percent-text" class="absolute text-[11px] font-extrabold tabular-nums">0%</span>
+                      </div>
+                    </div>
+
+                    <!-- Полоска прогресса и суммы -->
+                    <div class="mt-3">
+                      <div class="flex items-baseline justify-between gap-2">
+                        <div id="goal-saved-big" class="text-2xl font-extrabold tabular-nums">0,00 €</div>
+                        <span id="goal-target-label" class="text-xs font-semibold opacity-75 tabular-nums"></span>
+                      </div>
+                      <div id="goal-progress-bar-wrap" class="w-full h-1.5 rounded-full bg-pastel-ink/15 overflow-hidden mt-2">
+                        <div id="goal-progress-bar" class="h-full bg-pastel-ink rounded-full transition-all duration-500" style="width: 0%"></div>
+                      </div>
+                    </div>
+
+                    <!-- Кнопки управления целью -->
+                    <div class="mt-3 pt-2.5 border-t border-pastel-ink/10 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onclick="openGoalEditor()"
+                        class="px-2.5 py-1 rounded-xl bg-pastel-ink/10 hover:bg-pastel-ink/20 text-[11px] font-bold transition-colors"
+                      >
+                        Изменить цель
+                      </button>
+                      <button
+                        type="button"
+                        id="goal-reset-btn"
+                        onclick="handleGoalResetClick()"
+                        class="px-2.5 py-1 rounded-xl bg-pastel-ink/10 hover:bg-pastel-ink/20 text-[11px] font-bold transition-colors"
+                      >
+                        Новая цель
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Блок фотографии товара -->
+                  <div class="relative group w-full h-44 rounded-3xl bg-graphite-950 border border-dashed border-graphite-600 hover:border-pastel-mint/60 overflow-hidden mb-5 transition-colors">
+                    <input
+                      type="file"
+                      id="goal-active-photo-input"
+                      accept="image/*"
+                      onchange="handleGoalActivePhotoUpload(event)"
+                      class="hidden"
+                    />
+
+                    <!-- Плейсхолдер, если фото еще не добавлено -->
+                    <label
+                      for="goal-active-photo-input"
+                      id="goal-photo-placeholder"
+                      class="w-full h-full flex flex-col items-center justify-center cursor-pointer p-4 text-center"
+                    >
+                      <div class="w-11 h-11 rounded-full bg-graphite-800 border subtle-border flex items-center justify-center text-pastel-mint mb-2.5 group-hover:scale-105 transition-transform">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="3" y="4" width="18" height="16" rx="3" />
+                          <circle cx="8.5" cy="9.5" r="1.5" />
+                          <path d="M21 15l-5-5L5 20" />
+                        </svg>
+                      </div>
+                      <span class="text-xs font-bold text-zinc-200">Загрузить фотографию</span>
+                      <span class="text-[11px] text-[#8E929F] mt-0.5">Нажмите, чтобы выбрать изображение цели</span>
+                    </label>
+
+                    <!-- Загруженное фото -->
+                    <div id="goal-photo-preview-box" class="hidden w-full h-full relative">
+                      <img id="goal-photo-img" alt="Фото цели" class="w-full h-full object-cover" />
+                      <div class="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <label for="goal-active-photo-input" class="px-3.5 py-1.5 rounded-xl bg-pastel-mint text-pastel-ink text-xs font-extrabold cursor-pointer">
+                          Сменить фото
+                        </label>
+                        <button type="button" onclick="removeGoalPhoto()" class="px-3.5 py-1.5 rounded-xl bg-graphite-900/95 text-rose-300 border border-rose-800/50 text-xs font-bold">
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Перевод денег из основного капитала в цель -->
+                <form onsubmit="handleSavingsTransfer(event, 'saving_goal')" class="flex items-center gap-2.5 pt-3 border-t subtle-border">
+                  <div class="relative flex-1">
+                    <input
+                      type="text"
+                      inputmode="decimal"
+                      id="goal-transfer-amount"
+                      placeholder="Сумма перевода"
+                      autocomplete="off"
+                      class="w-full bg-graphite-950 border subtle-border focus:border-pastel-mint rounded-2xl pl-4 pr-9 py-3 text-sm font-bold text-white placeholder-zinc-500 tabular-nums outline-none"
+                    />
+                    <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-zinc-500">€</span>
+                  </div>
+                  <button
+                    type="submit"
+                    class="px-5 py-3 rounded-2xl bg-pastel-mint hover:brightness-105 text-pastel-ink text-xs sm:text-sm font-extrabold transition-all shrink-0"
+                  >
+                    В цель
+                  </button>
+                </form>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ПРАВЫЙ БЛОК: Минималистичный блок «На будущее» -->
+          <div class="stacked-card flex flex-col">
+            <div class="relative z-10 flex-1 bg-graphite-900 border subtle-border rounded-4xl p-5 sm:p-6 flex flex-col justify-between">
+              <div>
+                <div class="bg-pastel-lavender text-pastel-ink rounded-3xl p-4 mb-5 shadow-md">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold uppercase tracking-wider opacity-70">Резервная подушка</span>
+                    <div class="w-9 h-9 rounded-full border border-pastel-ink/20 flex items-center justify-center">
+                      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        <path d="M9 12l2 2 4-4" />
+                      </svg>
+                    </div>
+                  </div>
+                  <h3 class="text-lg font-extrabold mt-1">На будущее</h3>
+                  <p class="text-xs font-medium opacity-75 mt-0.5">Формирование личного финансового резерва</p>
+                </div>
+
+                <div class="h-44 rounded-3xl bg-graphite-950 border subtle-border flex flex-col items-center justify-center p-6 text-center mb-5">
+                  <span class="text-[11px] font-semibold uppercase tracking-widest text-[#8E929F] mb-2">
+                    Накоплено в резерве
+                  </span>
+                  <div id="reserve-saved-big" class="text-3xl sm:text-4xl font-extrabold text-white tabular-nums tracking-tight">
+                    0,00 €
+                  </div>
+                  <span id="reserve-tx-count" class="mt-2.5 px-3 py-1 rounded-full bg-graphite-800 text-[11px] font-semibold text-pastel-lavender">
+                    Пополнений: 0
+                  </span>
+                </div>
+              </div>
+
+              <!-- Поле перевода средств в резерв -->
+              <form onsubmit="handleSavingsTransfer(event, 'saving_reserve')" class="flex items-center gap-2.5 pt-3 border-t subtle-border">
+                <div class="relative flex-1">
+                  <input
+                    type="text"
+                    inputmode="decimal"
+                    id="reserve-transfer-amount"
+                    placeholder="Сумма в резерв"
+                    autocomplete="off"
+                    class="w-full bg-graphite-950 border subtle-border focus:border-pastel-lavender rounded-2xl pl-4 pr-9 py-3 text-sm font-bold text-white placeholder-zinc-500 tabular-nums outline-none"
+                  />
+                  <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-zinc-500">€</span>
+                </div>
+                <button
+                  type="submit"
+                  class="px-5 py-3 rounded-2xl bg-pastel-lavender hover:brightness-105 text-pastel-ink text-xs sm:text-sm font-extrabold transition-all shrink-0"
+                >
+                  Отложить
+                </button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ==================== ВКЛАДКА 3: ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ ==================== -->
+      <section id="tab-report" class="hidden view-fade space-y-6">
+
+        <!-- Чистый заголовок сводки (без верхней шапки профиля) -->
+        <div class="flex flex-wrap items-center justify-between gap-3 px-1">
+          <div>
+            <h2 class="text-xl font-extrabold text-white">Ежемесячный отчет</h2>
+            <p class="text-xs text-[#8E929F] mt-0.5">Компактная сводка за месяц с автоматическим суммированием категорий</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="report-month-badge" class="px-3.5 py-1.5 rounded-2xl bg-graphite-900 border subtle-border text-xs font-bold text-zinc-300"></span>
+          </div>
+        </div>
+
+        <!-- 4 КЛЮЧЕВЫЕ МЕТРИКИ (2x2 ПАСТЕЛЬНЫЕ КАРТОЧКИ) -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+          <!-- 1. На начало месяца (Mint) -->
+          <div class="bg-pastel-mint text-pastel-ink rounded-4xl p-5 flex flex-col items-center text-center justify-between min-h-[166px] shadow-lg shadow-black/20">
+            <div class="w-10 h-10 rounded-full border border-pastel-ink/20 flex items-center justify-center">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M14.8 9.2a3.5 3.5 0 100 5.6" />
+                <line x1="8" y1="11" x2="13" y2="11" />
+                <line x1="8" y1="13" x2="12" y2="13" />
+              </svg>
+            </div>
+            <div class="my-2">
+              <div id="report-metric-initial" class="text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums">1 200,00 €</div>
+              <span class="text-xs font-semibold opacity-75 block mt-1">На начало месяца</span>
+            </div>
+            <span class="text-[10px] font-bold uppercase tracking-wider opacity-55">Старт</span>
+          </div>
+
+          <!-- 2. Заработано (Lavender) -->
+          <div class="bg-pastel-lavender text-pastel-ink rounded-4xl p-5 flex flex-col items-center text-center justify-between min-h-[166px] shadow-lg shadow-black/20">
+            <div class="w-10 h-10 rounded-full border border-pastel-ink/20 flex items-center justify-center">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                <polyline points="16 7 22 7 22 13" />
+              </svg>
+            </div>
+            <div class="my-2">
+              <div id="report-metric-earned" class="text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums">+0,00 €</div>
+              <span class="text-xs font-semibold opacity-75 block mt-1">Заработано</span>
+            </div>
+            <span class="text-[10px] font-bold uppercase tracking-wider opacity-55">Доходы</span>
+          </div>
+
+          <!-- 3. Потрачено (Cream) -->
+          <div class="bg-pastel-cream text-pastel-ink rounded-4xl p-5 flex flex-col items-center text-center justify-between min-h-[166px] shadow-lg shadow-black/20">
+            <div class="w-10 h-10 rounded-full border border-pastel-ink/20 flex items-center justify-center">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 5v14" />
+                <path d="M18 13l-6 6-6-6" />
+              </svg>
+            </div>
+            <div class="my-2">
+              <div id="report-metric-spent" class="text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums">0,00 €</div>
+              <span class="text-xs font-semibold opacity-75 block mt-1">Потрачено</span>
+            </div>
+            <span id="report-metric-spent-note" class="text-[10px] font-bold uppercase tracking-wider opacity-60">Все траты</span>
+          </div>
+
+          <!-- 4. Финальный остаток (Blush) -->
+          <div class="bg-pastel-blush text-pastel-ink rounded-4xl p-5 flex flex-col items-center text-center justify-between min-h-[166px] shadow-lg shadow-black/20">
+            <div class="w-10 h-10 rounded-full border border-pastel-ink/20 flex items-center justify-center">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="3" />
+                <circle cx="16.5" cy="12" r="1.2" fill="currentColor" />
+              </svg>
+            </div>
+            <div class="my-2">
+              <div id="report-metric-final" class="text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums">1 200,00 €</div>
+              <span class="text-xs font-semibold opacity-75 block mt-1">Финальный остаток</span>
+            </div>
+            <span id="report-metric-saved-note" class="text-[10px] font-bold uppercase tracking-wider opacity-60">Доступно</span>
+          </div>
+        </div>
+
+        <!-- Агрегированные списки расходов и доходов -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+
+          <!-- Расходы по категориям -->
+          <div class="bg-graphite-900 border subtle-border rounded-4xl p-5 sm:p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-bold text-white">Расходы по категориям</h3>
+              <span class="text-[11px] text-[#8E929F]">Авто-суммирование</span>
+            </div>
+
+            <div id="report-expenses-list" class="space-y-3">
+              <!-- Заполняется через JS -->
+            </div>
+
+            <!-- Компактная строка переводов в накопления (если > 0) -->
+            <div id="report-savings-summary" class="hidden mt-4 pt-4 border-t subtle-border">
+              <div class="flex items-center justify-between gap-3 px-3.5 py-3 rounded-2xl bg-graphite-950 border subtle-border">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-10 h-10 rounded-full bg-pastel-mint text-pastel-ink flex items-center justify-center shrink-0">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                  </div>
+                  <div class="min-w-0">
+                    <span class="text-sm font-bold text-white block">Переведено в накопления</span>
+                    <span id="report-savings-sub" class="text-xs text-[#8E929F] truncate block"></span>
+                  </div>
+                </div>
+                <span id="report-savings-sum" class="text-sm font-extrabold text-pastel-mint tabular-nums shrink-0">0,00 €</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Доходы по категориям -->
+          <div class="bg-graphite-900 border subtle-border rounded-4xl p-5 sm:p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-sm font-bold text-white">Доходы по категориям</h3>
+              <span class="text-[11px] text-[#8E929F]">Авто-суммирование</span>
+            </div>
+
+            <div id="report-incomes-list" class="space-y-3">
+              <!-- Заполняется через JS -->
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ==================== НИЖНЯЯ НАВИГАЦИОННАЯ ПАНЕЛЬ ==================== -->
+  <nav
+    aria-label="Основная навигация"
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-2rem)] max-w-md bg-graphite-900/95 backdrop-blur-xl border subtle-border rounded-[28px] px-3 py-2.5 shadow-2xl shadow-black/70 flex items-center justify-around"
+  >
+    <!-- 1. Капитал -->
+    <button
+      type="button"
+      onclick="switchTab('capital')"
+      data-nav="capital"
+      class="nav-pill-btn flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-200 bg-pastel-mint text-pastel-ink font-extrabold text-xs shadow-md"
+    >
+      <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5.5v-6h-5v6H4a1 1 0 01-1-1v-9.5z" />
+      </svg>
+      <span class="nav-label">Капитал</span>
+    </button>
+
+    <!-- 2. Накопления -->
+    <button
+      type="button"
+      onclick="switchTab('savings')"
+      data-nav="savings"
+      class="nav-pill-btn flex items-center gap-2 px-3.5 py-2.5 rounded-2xl transition-all duration-200 text-zinc-400 hover:text-white font-bold text-xs"
+    >
+      <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="6" width="18" height="14" rx="3" />
+        <path d="M3 10h18" />
+        <circle cx="16.5" cy="15" r="1.2" />
+      </svg>
+      <span class="nav-label hidden sm:inline">Накопления</span>
+    </button>
+
+    <!-- 3. Отчет -->
+    <button
+      type="button"
+      onclick="switchTab('report')"
+      data-nav="report"
+      class="nav-pill-btn flex items-center gap-2 px-3.5 py-2.5 rounded-2xl transition-all duration-200 text-zinc-400 hover:text-white font-bold text-xs"
+    >
+      <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 20h16" />
+        <rect x="6" y="11" width="3" height="6" rx="1" />
+        <rect x="11" y="7" width="3" height="10" rx="1" />
+        <rect x="16" y="13" width="3" height="4" rx="1" />
+      </svg>
+      <span class="nav-label hidden sm:inline">Отчет</span>
+    </button>
+
+    <!-- 4. Профиль (единственная точка входа в настройки профиля) -->
+    <button
+      type="button"
+      onclick="openProfileModal(false, false)"
+      class="flex items-center gap-2 px-3 py-2 rounded-2xl text-zinc-400 hover:text-white hover:bg-graphite-800 transition-colors font-bold text-xs"
+      title="Профиль"
+    >
+      <div class="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center shrink-0">
+        <img id="dock-avatar-img" alt="Профиль" class="hidden w-full h-full object-cover rounded-full border border-white/20" />
+        <svg id="dock-avatar-icon" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="4" />
+          <path d="M5 20a7 7 0 0114 0" />
+        </svg>
+      </div>
+      <span class="hidden sm:inline">Профиль</span>
+    </button>
+  </nav>
+
+  <!-- ==================== МОДАЛЬНОЕ ОКНО ПРОФИЛЯ ==================== -->
+  <div
+    id="profile-modal"
+    onclick="onProfileBackdropClick(event)"
+    class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+  >
+    <div class="w-full max-w-md bg-graphite-900 border subtle-border rounded-4xl p-6 sm:p-7 shadow-2xl view-fade max-h-[92vh] overflow-y-auto">
+      <div class="flex items-start justify-between gap-3 mb-5">
+        <div>
+          <span class="px-2.5 py-1 rounded-full bg-pastel-mint text-pastel-ink text-[10px] font-extrabold uppercase tracking-wider">
+            Профиль
+          </span>
+          <h3 id="profile-modal-heading" class="text-xl font-extrabold text-white mt-2">
+            Настройка профиля
+          </h3>
+          <p class="text-xs text-[#8E929F] mt-0.5">
+            Имя отображается в приветствии «Hello Имя!» на вкладке Капитал
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onclick="closeProfileModal()"
+          class="w-9 h-9 rounded-2xl bg-graphite-800 hover:bg-graphite-700 text-zinc-400 hover:text-white flex items-center justify-center transition-colors shrink-0"
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <form onsubmit="handleProfileSave(event)" class="space-y-4">
+        <!-- Аватар профиля -->
+        <div class="flex items-center gap-4 p-3.5 rounded-3xl bg-graphite-950 border subtle-border">
+          <div class="w-16 h-16 rounded-2xl overflow-hidden bg-pastel-mint text-pastel-ink flex items-center justify-center shrink-0">
+            <img id="modal-avatar-preview" alt="Аватар" class="hidden w-full h-full object-cover" />
+            <span id="modal-avatar-initials" class="text-xl font-extrabold">Г</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <input
+              type="file"
+              id="profile-avatar-input"
+              accept="image/*"
+              onchange="handleAvatarFileSelect(event)"
+              class="hidden"
+            />
+            <div class="flex flex-wrap gap-2">
+              <label
+                for="profile-avatar-input"
+                class="px-3.5 py-2 rounded-xl bg-graphite-800 hover:bg-graphite-700 border subtle-border text-xs font-bold text-white cursor-pointer transition-colors"
+              >
+                Загрузить фото
+              </label>
+              <button
+                type="button"
+                onclick="clearModalAvatar()"
+                class="px-3 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-rose-300 transition-colors"
+              >
+                Убрать
+              </button>
+            </div>
+            <span class="text-[11px] text-[#8E929F] block mt-1.5">Отображается в нижней панели</span>
+          </div>
+        </div>
+
+        <!-- Имя пользователя -->
+        <div>
+          <label for="profile-name-input" class="block text-xs font-bold text-zinc-300 mb-1.5">
+            Ваше имя
+          </label>
+          <input
+            type="text"
+            id="profile-name-input"
+            oninput="onModalNameType(this.value)"
+            maxlength="28"
+            required
+            placeholder="Например: Серега"
+            class="w-full bg-graphite-950 border subtle-border focus:border-pastel-mint rounded-2xl px-4 py-3 text-sm font-bold text-white placeholder-zinc-500 outline-none"
+          />
+        </div>
+
+        <!-- Стартовый капитал на начало месяца -->
+        <div>
+          <label for="profile-capital-input" class="block text-xs font-bold text-zinc-300 mb-1.5">
+            Капитал на начало месяца (€)
+          </label>
+          <div class="relative">
+            <input
+              type="text"
+              inputmode="decimal"
+              id="profile-capital-input"
+              required
+              placeholder="1200,00"
+              class="w-full bg-graphite-950 border subtle-border focus:border-pastel-mint rounded-2xl pl-4 pr-10 py-3 text-sm font-bold text-white tabular-nums outline-none"
+            />
+            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-zinc-400">€</span>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          class="w-full py-3.5 rounded-2xl bg-pastel-mint hover:brightness-105 text-pastel-ink text-sm font-extrabold transition-all shadow-lg"
+        >
+          Сохранить
+        </button>
+      </form>
+
+      <!-- Сервисный сброс тестовых данных -->
+      <div class="mt-6 pt-5 border-t subtle-border flex items-center justify-between gap-3">
+        <div>
+          <span class="text-xs font-bold text-zinc-300 block">Очистка операций</span>
+          <span class="text-[11px] text-[#8E929F]">Сбросить траты, доходы и накопления</span>
+        </div>
+        <button
+          type="button"
+          id="reset-data-btn"
+          onclick="handleResetClick()"
+          class="px-3.5 py-2 rounded-xl bg-graphite-800 hover:bg-rose-950/70 border subtle-border text-xs font-bold text-rose-300 transition-colors shrink-0"
+        >
+          Сбросить данные
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ЛОГИКА ПРИЛОЖЕНИЯ ==================== -->
+  <script>
+    const STORAGE_KEY = 'finance_flow_v3';
+    const MAIN_RING_CIRCUMFERENCE = 2 * Math.PI * 116; // ~728.85
+    const GOAL_RING_CIRCUMFERENCE = 2 * Math.PI * 23;  // ~144.51
+
+    /**
+     * Минималистичные кастомные SVG-иконки (stroke-width="1.8", round caps)
+     */
+    const ICONS = {
+      // Расход 1: Еда (столовые приборы и тарелка)
+      food: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v7a3 3 0 003 3v8"/><path d="M7 3v7"/><path d="M10 3v7a3 3 0 01-3 3"/><path d="M19 3v18"/><path d="M19 3c-2.5 0-4 2.2-4 5.5V12h4"/></svg>`,
+      // Расход 2: CROUS (студенческая резиденция)
+      crous: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V6a2 2 0 012-2h12a2 2 0 012 2v15"/><path d="M2 21h20"/><path d="M9 21v-5a3 3 0 016 0v5"/><line x1="9" y1="8.5" x2="9.01" y2="8.5"/><line x1="15" y1="8.5" x2="15.01" y2="8.5"/><line x1="9" y1="12" x2="9.01" y2="12"/><line x1="15" y1="12" x2="15.01" y2="12"/></svg>`,
+      // Расход 3: Гигиена (чистая капля с блеском / дозатор ухода)
+      hygiene: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h6"/><path d="M12 3v3"/><path d="M10 3h5l1.5 1.5"/><rect x="7" y="9" width="10" height="12" rx="3"/><path d="M10 6v3"/><path d="M14 6v3"/><path d="M19 8l.8 1.7 1.7.8-1.7.8L19 13l-.8-1.7-1.7-.8 1.7-.8L19 8z"/></svg>`,
+      // Доход 1: Стипендия (академическая шапочка)
+      scholarship: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12.5v4.5c0 1.8 2.7 3.2 6 3.2s6-1.4 6-3.2v-4.5"/><line x1="22" y1="10" x2="22" y2="16"/></svg>`,
+      // Доход 2: Каф (дом с поддержкой)
+      caf: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1v-9.5z"/><path d="M12 16.5s-3-2-3-3.9a1.8 1.8 0 013.2-1.1 1.8 1.8 0 013.2 1.1c0 1.9-3.4 3.9-3.4 3.9z"/></svg>`,
+      // Доход 3: Винтед (вешалка для одежды)
+      vinted: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6a2 2 0 10-2-2c0 1.1.9 2 2 2zm0 0v2.5L4.2 14.2a1.9 1.9 0 001.1 3.4h13.4a1.9 1.9 0 001.1-3.4L12 8.5"/></svg>`,
+      // Свой вариант (знак вопроса в круге)
+      custom: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.4 2.4 0 014.7.8c0 1.6-2.3 2.1-2.3 3.5"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      // Копилка / Резерв
+      vault: `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`
+    };
+
+    /**
+     * Наборы категорий для карточек с иконками (ровно по 4 карточки в Расходе и Доходе)
+     */
+    const CATEGORY_CARDS = {
+      expense: [
+        { value: 'Еда', label: 'Еда', icon: 'food', badgeBg: 'bg-pastel-blush' },
+        { value: 'CROUS', label: 'CROUS', icon: 'crous', badgeBg: 'bg-pastel-lavender' },
+        { value: 'Гигиена', label: 'Гигиена', icon: 'hygiene', badgeBg: 'bg-pastel-mint' },
+        { value: '__custom__', label: 'Свой вариант', icon: 'custom', badgeBg: 'bg-pastel-cream' }
+      ],
+      income: [
+        { value: 'Стипендия', label: 'Стипендия', icon: 'scholarship', badgeBg: 'bg-pastel-mint' },
+        { value: 'Каф', label: 'Каф', icon: 'caf', badgeBg: 'bg-pastel-lavender' },
+        { value: 'Винтед', label: 'Винтед', icon: 'vinted', badgeBg: 'bg-pastel-cream' },
+        { value: '__custom__', label: 'Свой вариант', icon: 'custom', badgeBg: 'bg-pastel-blush' }
+      ]
+    };
+
+    /**
+     * Чистое начальное состояние (без предзаполненной цели про AR-очки)
+     */
+    function getDefaultState() {
+      return {
+        profile: {
+          created: false,
+          name: '',
+          avatarDataUrl: null
+        },
+        initialCapitalCents: 120000, // 1 200,00 €
+        goal: null, // Пользователь создает свою цель самостоятельно: { title, targetCents, imageDataUrl }
+        transactions: []
+        // { id, type: 'expense'|'income'|'saving_goal'|'saving_reserve', category, amountCents, createdAt }
+      };
+    }
+
+    let state = loadState();
+    let currentTxMode = 'expense';
+    let selectedCategoryValue = 'Еда';
+    let modalTempAvatar = null;
+    let tempGoalSetupPhoto = null;
+    let isEditingExistingGoal = false;
+    let displayedBalanceCents = 0;
+    let balanceAnimFrame = null;
+    let resetArmed = false;
+    let resetTimer = null;
+    let goalResetArmed = false;
+    let goalResetTimer = null;
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return getDefaultState();
+        const parsed = JSON.parse(raw);
+        return {
+          profile: {
+            created: Boolean(parsed.profile?.created && parsed.profile?.name),
+            name: parsed.profile?.name || '',
+            avatarDataUrl: parsed.profile?.avatarDataUrl || null
+          },
+          initialCapitalCents: typeof parsed.initialCapitalCents === 'number' ? parsed.initialCapitalCents : 120000,
+          goal: parsed.goal && parsed.goal.title
+            ? {
+                title: String(parsed.goal.title),
+                targetCents: typeof parsed.goal.targetCents === 'number' ? parsed.goal.targetCents : 0,
+                imageDataUrl: parsed.goal.imageDataUrl || null
+              }
+            : null,
+          transactions: Array.isArray(parsed.transactions) ? parsed.transactions : []
+        };
+      } catch (e) {
+        console.error('Ошибка чтения localStorage:', e);
+        return getDefaultState();
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        return true;
+      } catch (e) {
+        console.error('Ошибка сохранения:', e);
+        showToast('Недостаточно памяти браузера для большого фото.', 'error');
+        return false;
+      }
+    }
+
+    /**
+     * Форматирование суммы в центах в строку Евро: 1 250,50 €
+     */
+    function formatEuro(cents, showPlus = false) {
+      const sign = cents < 0 ? '−' : (showPlus && cents > 0 ? '+' : '');
+      const abs = Math.abs(Math.round(cents));
+      const euros = Math.floor(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+      const rem = (abs % 100).toString().padStart(2, '0');
+      return `${sign}${euros},${rem} €`;
+    }
+
+    /**
+     * Чтение строки суммы (с точкой или запятой) в целые центы
+     */
+    function parseCents(raw) {
+      if (typeof raw !== 'string') return 0;
+      const cleaned = raw.trim().replace(/\s+/g, '').replace(',', '.');
+      if (!cleaned) return 0;
+      if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return NaN;
+      const val = parseFloat(cleaned);
+      return Number.isFinite(val) ? Math.round(val * 100) : NaN;
+    }
+
+    /**
+     * Расчет метрик бюджета с точностью до цента
+     */
+    function calculateMetrics() {
+      let earnedCents = 0;
+      let spentCents = 0;
+      let goalSavedCents = 0;
+      let reserveSavedCents = 0;
+      let reserveTxCount = 0;
+
+      for (const tx of state.transactions) {
+        if (tx.type === 'income') earnedCents += tx.amountCents;
+        else if (tx.type === 'expense') spentCents += tx.amountCents;
+        else if (tx.type === 'saving_goal') goalSavedCents += tx.amountCents;
+        else if (tx.type === 'saving_reserve') {
+          reserveSavedCents += tx.amountCents;
+          reserveTxCount += 1;
+        }
+      }
+
+      const totalSavedCents = goalSavedCents + reserveSavedCents;
+      const totalBudgetPoolCents = state.initialCapitalCents + earnedCents;
+      const availableCents = totalBudgetPoolCents - spentCents - totalSavedCents;
+
+      return {
+        initialCents: state.initialCapitalCents,
+        earnedCents,
+        spentCents,
+        goalSavedCents,
+        reserveSavedCents,
+        reserveTxCount,
+        totalSavedCents,
+        totalBudgetPoolCents,
+        availableCents
+      };
+    }
+
+    /**
+     * Подбор иконки и пастельного фона для любой транзакции
+     */
+    function resolveVisualForTx(tx) {
+      if (tx.type === 'saving_goal') return { icon: ICONS.vault, bg: 'bg-pastel-mint' };
+      if (tx.type === 'saving_reserve') return { icon: ICONS.vault, bg: 'bg-pastel-lavender' };
+
+      const norm = tx.category.trim().toLowerCase();
+      if (tx.type === 'expense') {
+        if (norm === 'еда') return { icon: ICONS.food, bg: 'bg-pastel-blush' };
+        if (norm === 'crous' || norm === 'оплата crous') return { icon: ICONS.crous, bg: 'bg-pastel-lavender' };
+        if (norm === 'гигиена') return { icon: ICONS.hygiene, bg: 'bg-pastel-mint' };
+        return { icon: ICONS.custom, bg: 'bg-pastel-cream' };
+      } else {
+        if (norm === 'стипендия') return { icon: ICONS.scholarship, bg: 'bg-pastel-mint' };
+        if (norm === 'каф') return { icon: ICONS.caf, bg: 'bg-pastel-lavender' };
+        if (norm === 'винтед') return { icon: ICONS.vinted, bg: 'bg-pastel-cream' };
+        return { icon: ICONS.custom, bg: 'bg-pastel-blush' };
+      }
+    }
+
+    /**
+     * Плавная анимация баланса в центральном круге
+     */
+    function animateCapitalBalance(targetCents, pulseKind = null) {
+      const valEl = document.getElementById('capital-balance-value');
+      const boxEl = document.getElementById('capital-circle-box');
+
+      if (balanceAnimFrame) cancelAnimationFrame(balanceAnimFrame);
+
+      if (pulseKind === 'income') {
+        boxEl.classList.remove('pulse-income', 'pulse-expense');
+        void boxEl.offsetWidth;
+        boxEl.classList.add('pulse-income');
+      } else if (pulseKind === 'expense') {
+        boxEl.classList.remove('pulse-income', 'pulse-expense');
+        void boxEl.offsetWidth;
+        boxEl.classList.add('pulse-expense');
+      }
+
+      const startCents = displayedBalanceCents;
+      const delta = targetCents - startCents;
+      const duration = 540;
+      const t0 = performance.now();
+
+      function tick(now) {
+        const p = Math.min((now - t0) / duration, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        const cur = Math.round(startCents + delta * eased);
+        displayedBalanceCents = cur;
+        valEl.textContent = formatEuro(cur);
+
+        if (p < 1) {
+          balanceAnimFrame = requestAnimationFrame(tick);
+        } else {
+          displayedBalanceCents = targetCents;
+          valEl.textContent = formatEuro(targetCents);
+        }
+      }
+
+      balanceAnimFrame = requestAnimationFrame(tick);
+    }
+
+    /**
+     * Переключение между Расходом и Доходом
+     */
+    function setTransactionMode(mode) {
+      currentTxMode = mode;
+      const expBtn = document.getElementById('mode-btn-expense');
+      const incBtn = document.getElementById('mode-btn-income');
+      const submitBtn = document.getElementById('transaction-submit-btn');
+      const sectionLabel = document.getElementById('category-section-label');
+
+      if (mode === 'expense') {
+        expBtn.className = 'px-4 py-2 rounded-xl text-xs font-bold transition-all bg-pastel-blush text-pastel-ink shadow-sm';
+        incBtn.className = 'px-4 py-2 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-white';
+        submitBtn.textContent = 'Подтвердить расход';
+        submitBtn.className = 'px-7 py-3.5 rounded-2xl bg-pastel-blush hover:brightness-105 active:scale-[0.99] text-pastel-ink text-sm font-extrabold tracking-tight transition-all shrink-0 shadow-lg shadow-black/20';
+        sectionLabel.textContent = 'Категория расхода';
+        selectedCategoryValue = CATEGORY_CARDS.expense[0].value;
+      } else {
+        incBtn.className = 'px-4 py-2 rounded-xl text-xs font-bold transition-all bg-pastel-mint text-pastel-ink shadow-sm';
+        expBtn.className = 'px-4 py-2 rounded-xl text-xs font-bold transition-all text-zinc-400 hover:text-white';
+        submitBtn.textContent = 'Подтвердить доход';
+        submitBtn.className = 'px-7 py-3.5 rounded-2xl bg-pastel-mint hover:brightness-105 active:scale-[0.99] text-pastel-ink text-sm font-extrabold tracking-tight transition-all shrink-0 shadow-lg shadow-black/20';
+        sectionLabel.textContent = 'Категория дохода';
+        selectedCategoryValue = CATEGORY_CARDS.income[0].value;
+      }
+
+      renderCategoryCards();
+    }
+
+    /**
+     * Рендер карточек категорий с иконками (без текстового select под ними)
+     */
+    function renderCategoryCards() {
+      const list = CATEGORY_CARDS[currentTxMode];
+      const grid = document.getElementById('category-cards-grid');
+
+      grid.innerHTML = list.map((item) => {
+        const active = item.value === selectedCategoryValue;
+        const cardStyle = active
+          ? `${item.badgeBg} text-pastel-ink border-transparent shadow-md`
+          : 'bg-graphite-950 text-zinc-300 subtle-border hover:border-white/15';
+        const iconCircleStyle = active
+          ? 'border border-pastel-ink/20 bg-black/5 text-pastel-ink'
+          : `${item.badgeBg} text-pastel-ink`;
+
+        return `
+          <button
+            type="button"
+            onclick="selectCategory('${item.value}')"
+            class="p-3.5 rounded-3xl border flex flex-col items-center justify-center text-center gap-2.5 transition-all ${cardStyle}"
+          >
+            <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${iconCircleStyle}">
+              ${ICONS[item.icon]}
+            </span>
+            <span class="text-xs font-bold leading-tight">${item.label}</span>
+          </button>
+        `;
+      }).join('');
+
+      const customBox = document.getElementById('custom-category-box');
+      const customInput = document.getElementById('custom-category-input');
+      if (selectedCategoryValue === '__custom__') {
+        customBox.classList.remove('hidden');
+        customInput.placeholder = currentTxMode === 'expense'
+          ? 'Введите свой вариант расхода (например: Транспорт, Аптека)'
+          : 'Введите свой вариант дохода (например: Подработка, Подарок)';
+      } else {
+        customBox.classList.add('hidden');
+      }
+    }
+
+    function selectCategory(val) {
+      selectedCategoryValue = val;
+      renderCategoryCards();
+      if (val === '__custom__') {
+        document.getElementById('custom-category-input').focus();
+      }
+    }
+
+    /**
+     * Добавление новой транзакции (Расход / Доход)
+     */
+    function handleTransactionSubmit(event) {
+      event.preventDefault();
+      const customInput = document.getElementById('custom-category-input');
+      const amountInput = document.getElementById('transaction-amount-input');
+
+      let categoryName = selectedCategoryValue;
+      if (categoryName === '__custom__') {
+        categoryName = customInput.value.trim();
+        if (!categoryName) {
+          showToast('Введите название для «Своего варианта».', 'error');
+          customInput.focus();
+          return;
+        }
+      }
+
+      const amountCents = parseCents(amountInput.value);
+      if (!Number.isFinite(amountCents) || amountCents <= 0) {
+        showToast('Введите сумму больше 0,00 €.', 'error');
+        amountInput.focus();
+        return;
+      }
+
+      const metrics = calculateMetrics();
+      if (currentTxMode === 'expense' && amountCents > metrics.availableCents) {
+        showToast(`Недостаточно средств в капитале (${formatEuro(metrics.availableCents)}).`, 'error');
+        return;
+      }
+
+      state.transactions.unshift({
+        id: makeId(),
+        type: currentTxMode,
+        category: categoryName,
+        amountCents,
+        createdAt: new Date().toISOString()
+      });
+
+      saveState();
+      amountInput.value = '';
+      customInput.value = '';
+
+      renderAll(true, currentTxMode);
+      showToast(
+        currentTxMode === 'expense'
+          ? `Списано ${formatEuro(amountCents)} · ${categoryName}`
+          : `Зачислено +${formatEuro(amountCents)} · ${categoryName}`,
+        'success'
+      );
+    }
+
+    /**
+     * Удаление операции из истории с пересчетом баланса
+     */
+    function deleteTx(id) {
+      const idx = state.transactions.findIndex((t) => t.id === id);
+      if (idx === -1) return;
+
+      const tx = state.transactions[idx];
+      const metrics = calculateMetrics();
+
+      if (tx.type === 'income' && metrics.availableCents - tx.amountCents < 0) {
+        showToast('Нельзя отменить доход: часть средств уже потрачена.', 'error');
+        return;
+      }
+
+      state.transactions.splice(idx, 1);
+      saveState();
+      renderAll(true, tx.type === 'income' ? 'expense' : 'income');
+      showToast('Операция отменена, баланс пересчитан.', 'neutral');
+    }
+
+    /**
+     * Сжатие загружаемых изображений через Canvas для надежного хранения в localStorage
+     */
+    function compressImageFile(file, maxSide, quality, callback) {
+      if (!file || !file.type.startsWith('image/')) {
+        showToast('Пожалуйста, выберите файл изображения.', 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width;
+          let h = img.height;
+          if (w > maxSide || h > maxSide) {
+            if (w > h) {
+              h = Math.round((h * maxSide) / w);
+              w = maxSide;
+            } else {
+              w = Math.round((w * maxSide) / h);
+              h = maxSide;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          callback(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    /**
+     * Создание и редактирование пользовательской конкретной цели
+     */
+    function handleGoalSetupPhotoSelect(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      compressImageFile(file, 680, 0.82, (dataUrl) => {
+        tempGoalSetupPhoto = dataUrl;
+        const preview = document.getElementById('goal-setup-photo-preview');
+        preview.src = dataUrl;
+        preview.classList.remove('hidden');
+      });
+      event.target.value = '';
+    }
+
+    function handleGoalCreateOrUpdate(event) {
+      event.preventDefault();
+      const titleInput = document.getElementById('goal-setup-title');
+      const targetInput = document.getElementById('goal-setup-target');
+
+      const title = titleInput.value.trim();
+      if (!title) {
+        showToast('Введите название вашей цели.', 'error');
+        titleInput.focus();
+        return;
+      }
+
+      let targetCents = 0;
+      if (targetInput.value.trim() !== '') {
+        targetCents = parseCents(targetInput.value);
+        if (!Number.isFinite(targetCents) || targetCents < 0) {
+          showToast('Проверьте корректность целевой суммы.', 'error');
+          targetInput.focus();
+          return;
+        }
+      }
+
+      const prevPhoto = state.goal?.imageDataUrl || null;
+      state.goal = {
+        title,
+        targetCents,
+        imageDataUrl: tempGoalSetupPhoto !== null ? tempGoalSetupPhoto : prevPhoto
+      };
+
+      // Обновляем подпись у старых переводов в цель, чтобы в истории было актуальное название
+      for (const tx of state.transactions) {
+        if (tx.type === 'saving_goal') {
+          tx.category = `Цель: ${title}`;
+        }
+      }
+
+      isEditingExistingGoal = false;
+      tempGoalSetupPhoto = null;
+      saveState();
+
+      titleInput.value = '';
+      targetInput.value = '';
+      document.getElementById('goal-setup-photo-preview').classList.add('hidden');
+
+      renderAll(false);
+      showToast(`Цель «${title}» сохранена.`, 'success');
+    }
+
+    function openGoalEditor() {
+      if (!state.goal) return;
+      isEditingExistingGoal = true;
+      tempGoalSetupPhoto = state.goal.imageDataUrl;
+
+      document.getElementById('goal-setup-title').value = state.goal.title;
+      document.getElementById('goal-setup-target').value = state.goal.targetCents > 0
+        ? (state.goal.targetCents / 100).toFixed(2).replace('.', ',')
+        : '';
+
+      const preview = document.getElementById('goal-setup-photo-preview');
+      if (tempGoalSetupPhoto) {
+        preview.src = tempGoalSetupPhoto;
+        preview.classList.remove('hidden');
+      } else {
+        preview.classList.add('hidden');
+      }
+
+      document.getElementById('goal-save-submit-btn').textContent = 'Сохранить изменения';
+      document.getElementById('goal-cancel-edit-btn').classList.remove('hidden');
+
+      document.getElementById('goal-active-card').classList.add('hidden');
+      document.getElementById('goal-empty-setup').classList.remove('hidden');
+    }
+
+    function cancelGoalEditing() {
+      isEditingExistingGoal = false;
+      tempGoalSetupPhoto = null;
+      renderSavingsView(calculateMetrics());
+    }
+
+    function handleGoalResetClick() {
+      if (!goalResetArmed) {
+        goalResetArmed = true;
+        const btn = document.getElementById('goal-reset-btn');
+        btn.textContent = 'Сбросить цель?';
+        clearTimeout(goalResetTimer);
+        goalResetTimer = setTimeout(() => {
+          goalResetArmed = false;
+          const b = document.getElementById('goal-reset-btn');
+          if (b) b.textContent = 'Новая цель';
+        }, 3500);
+        return;
+      }
+
+      goalResetArmed = false;
+      // Возвращаем средства из старой цели обратно в доступный капитал и очищаем карточку цели
+      state.transactions = state.transactions.filter((tx) => tx.type !== 'saving_goal');
+      state.goal = null;
+      isEditingExistingGoal = false;
+      tempGoalSetupPhoto = null;
+
+      document.getElementById('goal-setup-title').value = '';
+      document.getElementById('goal-setup-target').value = '';
+      document.getElementById('goal-setup-photo-preview').classList.add('hidden');
+      document.getElementById('goal-save-submit-btn').textContent = 'Создать цель';
+      document.getElementById('goal-cancel-edit-btn').classList.add('hidden');
+
+      saveState();
+      renderAll(true, 'income');
+      showToast('Карточка цели очищена. Вы можете задать новую цель.', 'neutral');
+    }
+
+    function handleGoalActivePhotoUpload(event) {
+      const file = event.target.files?.[0];
+      if (!file || !state.goal) return;
+      compressImageFile(file, 680, 0.82, (dataUrl) => {
+        const prev = state.goal.imageDataUrl;
+        state.goal.imageDataUrl = dataUrl;
+        if (saveState()) {
+          renderSavingsView(calculateMetrics());
+          showToast('Фотография цели обновлена.', 'success');
+        } else {
+          state.goal.imageDataUrl = prev;
+        }
+      });
+      event.target.value = '';
+    }
+
+    function removeGoalPhoto() {
+      if (!state.goal) return;
+      state.goal.imageDataUrl = null;
+      saveState();
+      renderSavingsView(calculateMetrics());
+    }
+
+    /**
+     * Переводы из основного капитала в конкретную цель или в блок «На будущее»
+     */
+    function handleSavingsTransfer(event, type) {
+      event.preventDefault();
+      if (type === 'saving_goal' && !state.goal) {
+        showToast('Сначала создайте цель слева.', 'error');
+        return;
+      }
+
+      const inputId = type === 'saving_goal' ? 'goal-transfer-amount' : 'reserve-transfer-amount';
+      const inputEl = document.getElementById(inputId);
+      const amountCents = parseCents(inputEl.value);
+
+      if (!Number.isFinite(amountCents) || amountCents <= 0) {
+        showToast('Введите сумму перевода больше 0,00 €.', 'error');
+        inputEl.focus();
+        return;
+      }
+
+      const { availableCents } = calculateMetrics();
+      if (amountCents > availableCents) {
+        showToast(`Недостаточно свободного капитала (${formatEuro(availableCents)}).`, 'error');
+        return;
+      }
+
+      const label = type === 'saving_goal'
+        ? `Цель: ${state.goal.title}`
+        : 'На будущее (резерв)';
+
+      state.transactions.unshift({
+        id: makeId(),
+        type,
+        category: label,
+        amountCents,
+        createdAt: new Date().toISOString()
+      });
+
+      saveState();
+      inputEl.value = '';
+      renderAll(true, 'expense');
+      showToast(`Переведено ${formatEuro(amountCents)} в накопления.`, 'success');
+    }
+
+    /**
+     * Модальное окно профиля (открывается через нижнее меню «Профиль» или при первом запуске)
+     */
+    function openProfileModal(isFirstLaunch = false, focusCapital = false) {
+      resetArmed = false;
+      updateResetBtn();
+      modalTempAvatar = state.profile.avatarDataUrl;
+
+      document.getElementById('profile-modal-heading').textContent = isFirstLaunch
+        ? 'Создание профиля'
+        : 'Настройка профиля';
+
+      document.getElementById('profile-name-input').value = state.profile.name || '';
+      document.getElementById('profile-capital-input').value = (state.initialCapitalCents / 100).toFixed(2).replace('.', ',');
+
+      syncModalAvatarPreview(state.profile.name || 'Г', modalTempAvatar);
+      document.getElementById('profile-modal').classList.remove('hidden');
+
+      setTimeout(() => {
+        if (focusCapital && state.profile.name) {
+          document.getElementById('profile-capital-input').focus();
+        } else {
+          document.getElementById('profile-name-input').focus();
+        }
+      }, 60);
+    }
+
+    function closeProfileModal() {
+      document.getElementById('profile-modal').classList.add('hidden');
+    }
+
+    function onProfileBackdropClick(event) {
+      if (event.target.id === 'profile-modal') {
+        closeProfileModal();
+      }
+    }
+
+    function onModalNameType(val) {
+      syncModalAvatarPreview(val || 'Г', modalTempAvatar);
+    }
+
+    function handleAvatarFileSelect(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      compressImageFile(file, 220, 0.85, (dataUrl) => {
+        modalTempAvatar = dataUrl;
+        const typedName = document.getElementById('profile-name-input').value.trim() || 'Г';
+        syncModalAvatarPreview(typedName, modalTempAvatar);
+      });
+      event.target.value = '';
+    }
+
+    function clearModalAvatar() {
+      modalTempAvatar = null;
+      const typedName = document.getElementById('profile-name-input').value.trim() || 'Г';
+      syncModalAvatarPreview(typedName, null);
+    }
+
+    function syncModalAvatarPreview(nameStr, avatarUrl) {
+      const img = document.getElementById('modal-avatar-preview');
+      const init = document.getElementById('modal-avatar-initials');
+      init.textContent = (nameStr || 'Г').trim().charAt(0).toUpperCase() || 'Г';
+
+      if (avatarUrl) {
+        img.src = avatarUrl;
+        img.classList.remove('hidden');
+        init.classList.add('hidden');
+      } else {
+        img.removeAttribute('src');
+        img.classList.add('hidden');
+        init.classList.remove('hidden');
+      }
+    }
+
+    function handleProfileSave(event) {
+      event.preventDefault();
+      const nameVal = document.getElementById('profile-name-input').value.trim();
+      const capCents = parseCents(document.getElementById('profile-capital-input').value);
+
+      if (!nameVal) {
+        showToast('Пожалуйста, введите ваше имя.', 'error');
+        return;
+      }
+      if (!Number.isFinite(capCents) || capCents < 0) {
+        showToast('Введите корректный стартовый капитал.', 'error');
+        return;
+      }
+
+      state.profile.created = true;
+      state.profile.name = nameVal;
+      state.profile.avatarDataUrl = modalTempAvatar;
+      state.initialCapitalCents = capCents;
+
+      saveState();
+      closeProfileModal();
+      renderAll(true, 'income');
+      showToast(`Профиль сохранен: Hello ${nameVal}!`, 'success');
+    }
+
+    function handleResetClick() {
+      if (!resetArmed) {
+        resetArmed = true;
+        updateResetBtn();
+        clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => {
+          resetArmed = false;
+          updateResetBtn();
+        }, 4000);
+        return;
+      }
+
+      const savedProfile = { ...state.profile };
+      const savedInitial = state.initialCapitalCents;
+      state = getDefaultState();
+      state.profile = savedProfile;
+      state.initialCapitalCents = savedInitial;
+
+      saveState();
+      closeProfileModal();
+      renderAll(true, 'income');
+      showToast('Все операции и цели очищены.', 'neutral');
+    }
+
+    function updateResetBtn() {
+      const btn = document.getElementById('reset-data-btn');
+      if (resetArmed) {
+        btn.textContent = 'Подтвердить сброс';
+        btn.className = 'px-3.5 py-2 rounded-xl bg-rose-600 text-white text-xs font-extrabold transition-colors shrink-0';
+      } else {
+        btn.textContent = 'Сбросить данные';
+        btn.className = 'px-3.5 py-2 rounded-xl bg-graphite-800 hover:bg-rose-950/70 border subtle-border text-xs font-bold text-rose-300 transition-colors shrink-0';
+      }
+    }
+
+    /**
+     * Переключение вкладок в нижней навигационной панели
+     */
+    function switchTab(tabId) {
+      ['capital', 'savings', 'report'].forEach((id) => {
+        document.getElementById(`tab-${id}`).classList.toggle('hidden', id !== tabId);
+      });
+
+      document.querySelectorAll('.nav-pill-btn').forEach((btn) => {
+        const active = btn.getAttribute('data-nav') === tabId;
+        const label = btn.querySelector('.nav-label');
+        if (active) {
+          btn.className = 'nav-pill-btn flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-200 bg-pastel-mint text-pastel-ink font-extrabold text-xs shadow-md';
+          if (label) label.classList.remove('hidden');
+        } else {
+          btn.className = 'nav-pill-btn flex items-center gap-2 px-3.5 py-2.5 rounded-2xl transition-all duration-200 text-zinc-400 hover:text-white font-bold text-xs';
+          if (label) label.classList.add('hidden', 'sm:inline');
+        }
+      });
+
+      renderAll(false);
+    }
+
+    /**
+     * Обновление приветствия («Hello Имя!») и мини-аватара в нижнем доке
+     */
+    function renderIdentity() {
+      const cleanName = (state.profile.name || 'Гость').trim().replace(/!+$/, '');
+      document.getElementById('greeting-title').textContent = `Hello ${cleanName}!`;
+
+      const dockImg = document.getElementById('dock-avatar-img');
+      const dockIcon = document.getElementById('dock-avatar-icon');
+      if (state.profile.avatarDataUrl) {
+        dockImg.src = state.profile.avatarDataUrl;
+        dockImg.classList.remove('hidden');
+        dockIcon.classList.add('hidden');
+      } else {
+        dockImg.removeAttribute('src');
+        dockImg.classList.add('hidden');
+        dockIcon.classList.remove('hidden');
+      }
+    }
+
+    /**
+     * Рендеринг вкладки «Капитал»
+     */
+    function renderCapitalView(metrics, animate, pulseKind) {
+      if (animate) {
+        animateCapitalBalance(metrics.availableCents, pulseKind);
+      } else {
+        displayedBalanceCents = metrics.availableCents;
+        document.getElementById('capital-balance-value').textContent = formatEuro(metrics.availableCents);
+      }
+
+      let ratio = 0;
+      if (metrics.totalBudgetPoolCents > 0) {
+        ratio = Math.max(0, Math.min(1, metrics.availableCents / metrics.totalBudgetPoolCents));
+      } else if (metrics.availableCents > 0) {
+        ratio = 1;
+      }
+
+      const arc = document.getElementById('capital-ring-arc');
+      arc.style.strokeDasharray = `${MAIN_RING_CIRCUMFERENCE}`;
+      arc.style.strokeDashoffset = `${MAIN_RING_CIRCUMFERENCE * (1 - ratio)}`;
+
+      document.getElementById('capital-percent-pill').textContent = `${Math.round(ratio * 100)}% бюджета`;
+      document.getElementById('mini-income-sum').textContent = formatEuro(metrics.earnedCents, true);
+      document.getElementById('mini-expense-sum').textContent = `−${formatEuro(metrics.spentCents)}`;
+
+      const listEl = document.getElementById('recent-tx-list');
+      const countEl = document.getElementById('recent-tx-counter');
+      const total = state.transactions.length;
+      countEl.textContent = total > 0 ? `Всего записей: ${total}` : '';
+
+      if (total === 0) {
+        listEl.innerHTML = `
+          <div class="py-8 text-center rounded-3xl border border-dashed border-graphite-700 text-xs text-[#8E929F]">
+            Операций пока нет. Выберите карточку категории выше и добавьте первую запись.
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = state.transactions.slice(0, 6).map((tx) => {
+        const vis = resolveVisualForTx(tx);
+        const isInc = tx.type === 'income';
+        const isSav = tx.type === 'saving_goal' || tx.type === 'saving_reserve';
+
+        let sign = '−';
+        let amountColor = 'text-white';
+        let typeNote = isSav ? 'В накопления' : 'Расход';
+
+        if (isInc) {
+          sign = '+';
+          amountColor = 'text-pastel-mint';
+          typeNote = 'Доход';
+        }
+
+        const dateObj = new Date(tx.createdAt);
+        const timeFormatted = Number.isNaN(dateObj.getTime())
+          ? ''
+          : dateObj.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+        return `
+          <div class="flex items-center justify-between gap-3.5 px-3.5 py-3 rounded-3xl bg-graphite-950/85 hover:bg-graphite-800/80 border subtle-border transition-colors">
+            <div class="flex items-center gap-3.5 min-w-0">
+              <div class="w-11 h-11 rounded-full ${vis.bg} text-pastel-ink flex items-center justify-center shrink-0">
+                ${vis.icon}
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-bold text-white truncate">${escapeHtml(tx.category)}</div>
+                <div class="text-xs text-[#8E929F] truncate mt-0.5">${typeNote}${timeFormatted ? ` · ${timeFormatted}` : ''}</div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2.5 shrink-0">
+              <span class="text-sm sm:text-base font-extrabold tabular-nums ${amountColor}">
+                ${sign}${formatEuro(tx.amountCents)}
+              </span>
+              <button
+                type="button"
+                onclick="deleteTx('${tx.id}')"
+                class="w-7 h-7 rounded-xl text-zinc-500 hover:text-rose-300 hover:bg-graphite-700 flex items-center justify-center transition-colors"
+                title="Удалить запись"
+              >
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    /**
+     * Рендеринг вкладки «Накопления»
+     */
+    function renderSavingsView(metrics) {
+      document.getElementById('savings-free-capital').textContent = formatEuro(metrics.availableCents);
+
+      const emptySetup = document.getElementById('goal-empty-setup');
+      const activeCard = document.getElementById('goal-active-card');
+
+      if (!state.goal) {
+        emptySetup.classList.remove('hidden');
+        activeCard.classList.add('hidden');
+        document.getElementById('goal-save-submit-btn').textContent = 'Создать цель';
+        document.getElementById('goal-cancel-edit-btn').classList.add('hidden');
+      } else if (!isEditingExistingGoal) {
+        emptySetup.classList.add('hidden');
+        activeCard.classList.remove('hidden');
+
+        document.getElementById('goal-card-title').textContent = state.goal.title;
+        document.getElementById('goal-saved-big').textContent = formatEuro(metrics.goalSavedCents);
+
+        const ringBox = document.getElementById('goal-ring-box');
+        const targetLabel = document.getElementById('goal-target-label');
+        const barWrap = document.getElementById('goal-progress-bar-wrap');
+        const barEl = document.getElementById('goal-progress-bar');
+
+        if (state.goal.targetCents > 0) {
+          const pct = Math.min(100, Math.round((metrics.goalSavedCents / state.goal.targetCents) * 100));
+          ringBox.classList.remove('hidden');
+          barWrap.classList.remove('hidden');
+          document.getElementById('goal-percent-text').textContent = `${pct}%`;
+          targetLabel.textContent = `из ${formatEuro(state.goal.targetCents)}`;
+          barEl.style.width = `${pct}%`;
+
+          const miniRing = document.getElementById('goal-mini-ring');
+          miniRing.style.strokeDasharray = `${GOAL_RING_CIRCUMFERENCE}`;
+          miniRing.style.strokeDashoffset = `${GOAL_RING_CIRCUMFERENCE * (1 - pct / 100)}`;
+        } else {
+          ringBox.classList.add('hidden');
+          barWrap.classList.add('hidden');
+          targetLabel.textContent = 'Накоплено';
+        }
+
+        const placeholder = document.getElementById('goal-photo-placeholder');
+        const previewBox = document.getElementById('goal-photo-preview-box');
+        const img = document.getElementById('goal-photo-img');
+
+        if (state.goal.imageDataUrl) {
+          img.src = state.goal.imageDataUrl;
+          placeholder.classList.add('hidden');
+          previewBox.classList.remove('hidden');
+        } else {
+          img.removeAttribute('src');
+          placeholder.classList.remove('hidden');
+          previewBox.classList.add('hidden');
+        }
+      }
+
+      document.getElementById('reserve-saved-big').textContent = formatEuro(metrics.reserveSavedCents);
+      document.getElementById('reserve-tx-count').textContent = `Пополнений: ${metrics.reserveTxCount}`;
+    }
+
+    /**
+     * Рендеринг вкладки «Ежемесячный отчет»
+     */
+    function renderReportView(metrics) {
+      const now = new Date();
+      const monthText = now.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+      document.getElementById('report-month-badge').textContent =
+        monthText.charAt(0).toUpperCase() + monthText.slice(1);
+
+      document.getElementById('report-metric-initial').textContent = formatEuro(metrics.initialCents);
+      document.getElementById('report-metric-earned').textContent = formatEuro(metrics.earnedCents, true);
+      document.getElementById('report-metric-spent').textContent = formatEuro(metrics.spentCents);
+      document.getElementById('report-metric-final').textContent = formatEuro(metrics.availableCents);
+
+      document.getElementById('report-metric-spent-note').textContent = metrics.totalSavedCents > 0
+        ? `+ В копилках ${formatEuro(metrics.totalSavedCents)}`
+        : 'Все траты';
+
+      document.getElementById('report-metric-saved-note').textContent = 'Остаток в круге';
+
+      // Агрегация РАСХОДОВ (регистронезависимое слияние одинаковых категорий)
+      const expenseMap = new Map();
+      for (const tx of state.transactions) {
+        if (tx.type !== 'expense') continue;
+        const cleanTitle = tx.category.trim().replace(/\s+/g, ' ');
+        const key = cleanTitle.toLowerCase();
+
+        if (!expenseMap.has(key)) {
+          expenseMap.set(key, {
+            title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
+            totalCents: 0,
+            count: 0,
+            sampleTx: tx
+          });
+        }
+        const grp = expenseMap.get(key);
+        grp.totalCents += tx.amountCents;
+        grp.count += 1;
+      }
+
+      const expensesArr = Array.from(expenseMap.values()).sort((a, b) => b.totalCents - a.totalCents);
+      const expContainer = document.getElementById('report-expenses-list');
+
+      if (expensesArr.length === 0) {
+        expContainer.innerHTML = `
+          <div class="py-8 text-center rounded-3xl border border-dashed border-graphite-700 text-xs text-[#8E929F]">
+            В этом месяце пока нет расходов.
+          </div>
+        `;
+      } else {
+        expContainer.innerHTML = expensesArr.map((grp) => {
+          const vis = resolveVisualForTx(grp.sampleTx);
+          const pct = metrics.spentCents > 0 ? Math.round((grp.totalCents / metrics.spentCents) * 100) : 0;
+
+          return `
+            <div class="p-3.5 rounded-3xl bg-graphite-950/85 border subtle-border">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-10 h-10 rounded-full ${vis.bg} text-pastel-ink flex items-center justify-center shrink-0">
+                    ${vis.icon}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-white truncate">${escapeHtml(grp.title)}</div>
+                    <div class="text-xs text-[#8E929F]">Платежей: ${grp.count} · ${pct}%</div>
+                  </div>
+                </div>
+                <span class="text-sm sm:text-base font-extrabold text-white tabular-nums shrink-0">
+                  ${formatEuro(grp.totalCents)}
+                </span>
+              </div>
+              <div class="w-full h-1.5 rounded-full bg-graphite-800 overflow-hidden mt-3">
+                <div class="h-full ${vis.bg} rounded-full" style="width: ${pct}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Сводная строка переводов в накопления
+      const savSummary = document.getElementById('report-savings-summary');
+      if (metrics.totalSavedCents > 0) {
+        savSummary.classList.remove('hidden');
+        document.getElementById('report-savings-sum').textContent = formatEuro(metrics.totalSavedCents);
+        const goalLabel = state.goal ? state.goal.title : 'Цель';
+        document.getElementById('report-savings-sub').textContent =
+          `${goalLabel}: ${formatEuro(metrics.goalSavedCents)} · На будущее: ${formatEuro(metrics.reserveSavedCents)}`;
+      } else {
+        savSummary.classList.add('hidden');
+      }
+
+      // Агрегация ДОХОДОВ (регистронезависимое слияние одинаковых категорий)
+      const incomeMap = new Map();
+      for (const tx of state.transactions) {
+        if (tx.type !== 'income') continue;
+        const cleanTitle = tx.category.trim().replace(/\s+/g, ' ');
+        const key = cleanTitle.toLowerCase();
+
+        if (!incomeMap.has(key)) {
+          incomeMap.set(key, {
+            title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
+            totalCents: 0,
+            count: 0,
+            sampleTx: tx
+          });
+        }
+        const grp = incomeMap.get(key);
+        grp.totalCents += tx.amountCents;
+        grp.count += 1;
+      }
+
+      const incomesArr = Array.from(incomeMap.values()).sort((a, b) => b.totalCents - a.totalCents);
+      const incContainer = document.getElementById('report-incomes-list');
+
+      if (incomesArr.length === 0) {
+        incContainer.innerHTML = `
+          <div class="py-8 text-center rounded-3xl border border-dashed border-graphite-700 text-xs text-[#8E929F]">
+            Доходов пока не добавлено.
+          </div>
+        `;
+      } else {
+        incContainer.innerHTML = incomesArr.map((grp) => {
+          const vis = resolveVisualForTx(grp.sampleTx);
+          const pct = metrics.earnedCents > 0 ? Math.round((grp.totalCents / metrics.earnedCents) * 100) : 0;
+
+          return `
+            <div class="p-3.5 rounded-3xl bg-graphite-950/85 border subtle-border">
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-10 h-10 rounded-full ${vis.bg} text-pastel-ink flex items-center justify-center shrink-0">
+                    ${vis.icon}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-bold text-white truncate">${escapeHtml(grp.title)}</div>
+                    <div class="text-xs text-[#8E929F]">Поступлений: ${grp.count} · ${pct}%</div>
+                  </div>
+                </div>
+                <span class="text-sm sm:text-base font-extrabold text-pastel-mint tabular-nums shrink-0">
+                  +${formatEuro(grp.totalCents)}
+                </span>
+              </div>
+              <div class="w-full h-1.5 rounded-full bg-graphite-800 overflow-hidden mt-3">
+                <div class="h-full ${vis.bg} rounded-full" style="width: ${pct}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    /**
+     * Комплексное обновление всех экранов
+     */
+    function renderAll(animate = false, pulseKind = null) {
+      const metrics = calculateMetrics();
+      renderIdentity();
+      renderCapitalView(metrics, animate, pulseKind);
+      renderSavingsView(metrics);
+      renderReportView(metrics);
+    }
+
+    /**
+     * Всплывающие уведомления
+     */
+    function showToast(text, type = 'neutral') {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+
+      let accent = 'border-white/15 text-white';
+      if (type === 'success') accent = 'border-pastel-mint/70 text-pastel-mint';
+      else if (type === 'error') accent = 'border-pastel-blush/80 text-pastel-blush';
+
+      el.className = `pointer-events-auto bg-graphite-900/95 backdrop-blur-md border ${accent} px-4 py-3 rounded-2xl shadow-2xl text-xs font-semibold view-fade`;
+      el.textContent = text;
+      container.appendChild(el);
+
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transition = 'opacity 0.25s ease';
+        setTimeout(() => el.remove(), 260);
+      }, 3000);
+    }
+
+    function makeId() {
+      return Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Запуск приложения после загрузки DOM
+    window.addEventListener('DOMContentLoaded', () => {
+      setTransactionMode('expense');
+      renderAll(false);
+
+      if (!state.profile.created) {
+        openProfileModal(true, false);
+      }
+    });
+  </script>
+</body>
+</html>
